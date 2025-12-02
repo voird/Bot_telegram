@@ -9,9 +9,8 @@ bot = telebot.TeleBot(TOKEN)
 # временное хранилище анкет
 pending_forms = {}
 
-# стартовое сообщение с кнопками
-@bot.message_handler(commands=['start'])
-def start(message):
+# функция для отправки главного меню
+def send_main_menu(chat_id):
     markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
     rules_btn = types.KeyboardButton("Правила и сюжет")
     blood_btn = types.KeyboardButton("Касты крови")
@@ -19,7 +18,7 @@ def start(message):
     markup.add(rules_btn, blood_btn, form_btn)
 
     bot.send_message(
-        message.chat.id,
+        chat_id,
         """ㅤㅤㅤㅤㅤДобро пожаловать в  Bureau of Utter Confusion!
 
 ㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤㅤНаш канал (https://t.me/BureauofUtterConfusion)
@@ -32,25 +31,38 @@ def start(message):
         reply_markup=markup
     )
 
+# стартовое сообщение с кнопками
+@bot.message_handler(commands=['start'])
+def start(message):
+    send_main_menu(message.chat.id)
+
 # обработка кнопок стартового меню
 @bot.message_handler(func=lambda message: True)
 def handle_menu(message):
     if message.text == "Правила и сюжет":
         bot.send_message(
             message.chat.id,
-            """ Правила (https://telegra.ph/Ustav-Arhiva-Glupyh-Oshibok-11-29)
+            """Правила (https://telegra.ph/Ustav-Arhiva-Glupyh-Oshibok-11-29)
             
 Сюжет (https://telegra.ph/Syuzhet-BUC-11-29)ㅤ"""
         )
     elif message.text == "Касты крови":
         bot.send_message(
             message.chat.id,
-            """ Корпоративный гемоспектр (https://telegra.ph/KORPORATIVNYJ-GEMOSPEKTR-11-29)ㅤ"""
+            """Корпоративный гемоспектр (https://telegra.ph/KORPORATIVNYJ-GEMOSPEKTR-11-29)ㅤ"""
         )
     elif message.text == "Написать анкету":
-        bot.send_message(
-            message.chat.id,
-            """Имя/Как к вам обращаться:
+        send_form_menu(message.chat.id)
+        bot.register_next_step_handler(message, handle_form_step)
+
+# функция для отправки формы с кнопкой "Назад в меню"
+def send_form_menu(chat_id):
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+    back_btn = types.KeyboardButton("Назад в меню")
+    markup.add(back_btn)
+    bot.send_message(
+        chat_id,
+        """Имя/Как к вам обращаться:
 
 Возраст:
 (Минимум 13 лет)
@@ -74,22 +86,25 @@ def handle_menu(message):
 Как вы отреагируете на агрессию в сторону незнакомых людей при наборе/сборе?
 (Напишите, как обычно действуете в конфликтных ситуациях)
 
-Отправь анкету одним сообщением."""
-        )
-        bot.register_next_step_handler(message, handle_form)
+Отправь анкету одним сообщением.""",
+        reply_markup=markup
+    )
 
-# обработка отправки анкеты
-def handle_form(message):
+# обработка ввода анкеты
+def handle_form_step(message):
+    if message.text == "Назад в меню":
+        send_main_menu(message.chat.id)
+        return
+
+    # иначе считаем, что это анкета
     user_id = message.from_user.id
     pending_forms[user_id] = message.text
 
-    # inline-кнопки для админа
     markup = types.InlineKeyboardMarkup()
     approve_btn = types.InlineKeyboardButton("Подтвердить", callback_data=f"approve_{user_id}")
     reject_btn = types.InlineKeyboardButton("Отклонить", callback_data=f"reject_{user_id}")
     markup.add(approve_btn, reject_btn)
 
-    # отправка админу
     bot.send_message(ADMIN_ID,
                      f"Новая анкета от {message.from_user.first_name}:\n\n{message.text}",
                      reply_markup=markup)
